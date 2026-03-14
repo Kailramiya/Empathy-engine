@@ -117,12 +117,12 @@ The vocal parameter profiles are grounded in prosody research from affective com
 
 | Emotion | Rate | Pitch | Volume | Rationale |
 |---------|------|-------|--------|-----------|
-| **Joy** | +18% | +10Hz | +12% | Energetic, upbeat — faster pace and raised pitch convey excitement |
-| **Anger** | +8% | -6Hz | +25% | Forceful, intense — lower pitch with amplified volume signals authority |
-| **Sadness** | -25% | -10Hz | -18% | Slow, somber — reduced rate and pitch reflect low energy |
-| **Fear** | +22% | +12Hz | -12% | Rapid, tense — faster speech with raised pitch signals anxiety |
-| **Surprise** | +12% | +15Hz | +18% | Exclamatory — notably raised pitch and volume |
-| **Disgust** | -12% | -7Hz | -6% | Deliberate, disdainful — slower delivery with lowered pitch |
+| **Joy** | +30% | +25Hz | +20% | Energetic, upbeat — faster pace and raised pitch convey excitement |
+| **Anger** | +15% | -15Hz | +40% | Forceful, intense — lower pitch with amplified volume signals authority |
+| **Sadness** | -40% | -30Hz | -25% | Slow, somber — reduced rate and pitch reflect low energy |
+| **Fear** | +35% | +28Hz | -15% | Rapid, tense — faster speech with raised pitch signals anxiety |
+| **Surprise** | +20% | +35Hz | +25% | Exclamatory — notably raised pitch and volume |
+| **Disgust** | -20% | -18Hz | -10% | Deliberate, disdainful — slower delivery with lowered pitch |
 | **Neutral** | 0% | 0Hz | 0% | No modulation — natural baseline delivery |
 
 ### Intensity Scaling
