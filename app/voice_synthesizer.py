@@ -4,6 +4,11 @@ Voice Synthesizer Module for The Empathy Engine.
 Maps detected emotions to vocal parameters (rate, pitch, volume) and
 generates expressive speech audio with intensity scaling.
 
+Supports multiple languages and neural voices:
+  English:  en-US-AriaNeural, en-US-JennyNeural, en-US-GuyNeural, en-GB-SoniaNeural
+  Hindi:    hi-IN-SwaraNeural, hi-IN-MadhurNeural
+  Hinglish: Uses Hindi neural voices (handles mixed script naturally)
+
 TTS Engines (auto-detected, in priority order):
   1. edge-tts  — Microsoft Neural voices, SSML prosody control, free (needs internet)
   2. espeak-ng  — Offline, full pitch/rate/amplitude control via subprocess
@@ -11,8 +16,6 @@ TTS Engines (auto-detected, in priority order):
 
 Emotion-to-Voice Mapping Design Rationale:
   The parameter choices are grounded in prosody research from affective computing.
-  For example, joy correlates with faster speech rate and raised pitch (F0),
-  while sadness is associated with slower rate and lowered pitch.
   See: Scherer, K.R. (2003) "Vocal communication of emotion"
 """
 
@@ -22,7 +25,7 @@ import shutil
 import subprocess
 import uuid
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 
 @dataclass
@@ -35,21 +38,46 @@ class VoiceParameters:
     ssml: str           # Generated SSML markup
 
 
+@dataclass
+class VoiceOption:
+    """Represents a selectable TTS voice."""
+    id: str             # e.g. "en-US-AriaNeural"
+    name: str           # e.g. "Aria (US Female)"
+    language: str       # e.g. "en", "hi", "hinglish"
+    gender: str         # "female" or "male"
+
+
+# ── Available Voices ─────────────────────────────────────────────────────
+
+VOICE_OPTIONS: Dict[str, List[VoiceOption]] = {
+    "en": [
+        VoiceOption("en-US-AriaNeural",   "Aria (US Female, Expressive)",   "en", "female"),
+        VoiceOption("en-US-JennyNeural",  "Jenny (US Female, Warm)",        "en", "female"),
+        VoiceOption("en-US-GuyNeural",    "Guy (US Male, Casual)",          "en", "male"),
+        VoiceOption("en-US-DavisNeural",  "Davis (US Male, Professional)",  "en", "male"),
+        VoiceOption("en-GB-SoniaNeural",  "Sonia (UK Female, British)",     "en", "female"),
+        VoiceOption("en-IN-NeerjaNeural", "Neerja (Indian English Female)", "en", "female"),
+    ],
+    "hi": [
+        VoiceOption("hi-IN-SwaraNeural",  "Swara (Hindi Female)",           "hi", "female"),
+        VoiceOption("hi-IN-MadhurNeural", "Madhur (Hindi Male)",            "hi", "male"),
+    ],
+    "hinglish": [
+        VoiceOption("hi-IN-SwaraNeural",  "Swara (Hinglish Female)",        "hinglish", "female"),
+        VoiceOption("hi-IN-MadhurNeural", "Madhur (Hinglish Male)",         "hinglish", "male"),
+        VoiceOption("en-IN-NeerjaNeural", "Neerja (Indian English Female)", "hinglish", "female"),
+    ],
+}
+
+# Default voice per language
+DEFAULT_VOICES = {
+    "en": "en-US-AriaNeural",
+    "hi": "hi-IN-SwaraNeural",
+    "hinglish": "hi-IN-SwaraNeural",
+}
+
+
 # ── Emotion → Voice Profile Mapping ──────────────────────────────────────
-#
-# Each profile specifies BASE modulation values for rate (%), pitch (Hz),
-# and volume (%).  These are scaled by the emotion's confidence (intensity)
-# before being applied to the TTS engine.
-#
-# │ Emotion   │ Rate  │ Pitch │ Volume │ Rationale                         │
-# │───────────│───────│───────│────────│───────────────────────────────────│
-# │ joy       │ +18%  │ +10Hz │ +12%   │ Energetic, upbeat, confident      │
-# │ anger     │ +8%   │  -6Hz │ +25%   │ Forceful, intense, commanding     │
-# │ sadness   │ -25%  │ -10Hz │ -18%   │ Slow, somber, subdued             │
-# │ fear      │ +22%  │ +12Hz │ -12%   │ Rapid, tense, anxious             │
-# │ surprise  │ +12%  │ +15Hz │ +18%   │ Exclamatory, high-pitched         │
-# │ disgust   │ -12%  │  -7Hz │  -6%   │ Deliberate, disdainful            │
-# │ neutral   │   0%  │  0Hz  │   0%   │ Natural baseline                  │
 
 EMOTION_PROFILES = {
     "joy": {
@@ -103,11 +131,11 @@ class VoiceSynthesizer:
 
     Automatically selects the best available TTS engine and applies
     emotion-driven prosody adjustments with intensity scaling.
+    Supports English, Hindi, and Hinglish with multiple neural voices.
     """
 
-    def __init__(self, output_dir: str = "output", voice: str = "en-US-AriaNeural"):
+    def __init__(self, output_dir: str = "output"):
         self.output_dir = output_dir
-        self.voice = voice
         self._engine = self._detect_engine()
         os.makedirs(output_dir, exist_ok=True)
         print(f"[Empathy Engine] ✓ TTS engine: {self._engine}")
@@ -115,6 +143,17 @@ class VoiceSynthesizer:
     @property
     def engine_name(self) -> str:
         return self._engine
+
+    @staticmethod
+    def get_available_voices(language: str = "en") -> List[dict]:
+        """Return available voices for a given language."""
+        voices = VOICE_OPTIONS.get(language, VOICE_OPTIONS["en"])
+        return [{"id": v.id, "name": v.name, "gender": v.gender} for v in voices]
+
+    @staticmethod
+    def get_default_voice(language: str = "en") -> str:
+        """Return the default voice ID for a language."""
+        return DEFAULT_VOICES.get(language, DEFAULT_VOICES["en"])
 
     # ── Engine detection ─────────────────────────────────────────────────
 
@@ -141,14 +180,13 @@ class VoiceSynthesizer:
 
     # ── Parameter computation ────────────────────────────────────────────
 
-    def get_voice_parameters(self, emotion: str, intensity: float = 1.0) -> VoiceParameters:
+    def get_voice_parameters(self, emotion: str, intensity: float = 1.0, language: str = "en") -> VoiceParameters:
         """
         Compute voice parameters for a given emotion and intensity.
 
         Intensity scaling: the raw profile values are multiplied by the
-        confidence score so that "This is good" (confidence 0.6) gets a
-        subtle modulation while "This is the BEST NEWS EVER!" (confidence 0.95)
-        gets a dramatic shift.
+        confidence score so that subtle text gets subtle modulation while
+        highly emotional text gets dramatic shifts.
         """
         profile = EMOTION_PROFILES.get(emotion, EMOTION_PROFILES["neutral"])
 
@@ -160,9 +198,11 @@ class VoiceSynthesizer:
         pitch_str = f"{'+' if scaled_pitch >= 0 else ''}{scaled_pitch}Hz"
         volume_str = f"{'+' if scaled_volume >= 0 else ''}{scaled_volume}%"
 
-        # Generate W3C-compliant SSML
+        # Determine xml:lang for SSML
+        lang_tag = {"en": "en-US", "hi": "hi-IN", "hinglish": "hi-IN"}.get(language, "en-US")
+
         ssml = (
-            '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">\n'
+            f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="{lang_tag}">\n'
             f'  <prosody rate="{rate_str}" pitch="{pitch_str}" volume="{volume_str}">\n'
             "    {text}\n"
             "  </prosody>\n"
@@ -177,20 +217,32 @@ class VoiceSynthesizer:
             ssml=ssml,
         )
 
+    # ── Resolve voice ────────────────────────────────────────────────────
+
+    def _resolve_voice(self, voice: str = "", language: str = "en") -> str:
+        """Pick the right voice: user choice > language default > fallback."""
+        if voice:
+            return voice
+        return self.get_default_voice(language)
+
     # ── Synthesis (sync wrapper) ─────────────────────────────────────────
 
-    def synthesize(self, text: str, emotion: str, intensity: float = 1.0) -> Tuple[str, VoiceParameters]:
+    def synthesize(
+        self, text: str, emotion: str, intensity: float = 1.0,
+        language: str = "en", voice: str = "",
+    ) -> Tuple[str, VoiceParameters]:
         """Generate speech audio file. Returns (filename, parameters)."""
-        params = self.get_voice_parameters(emotion, intensity)
+        params = self.get_voice_parameters(emotion, intensity, language)
+        resolved_voice = self._resolve_voice(voice, language)
         filename = f"speech_{uuid.uuid4().hex[:10]}.mp3"
         output_path = os.path.join(self.output_dir, filename)
 
         if self._engine == "edge-tts":
-            asyncio.run(self._synthesize_edge_tts(text, params, output_path))
+            asyncio.run(self._synthesize_edge_tts(text, params, output_path, resolved_voice))
         elif self._engine == "espeak-ng":
             filename = filename.replace(".mp3", ".wav")
             output_path = output_path.replace(".mp3", ".wav")
-            self._synthesize_espeak(text, params, output_path)
+            self._synthesize_espeak(text, params, output_path, language)
         elif self._engine == "pyttsx3":
             filename = filename.replace(".mp3", ".wav")
             output_path = output_path.replace(".mp3", ".wav")
@@ -200,18 +252,22 @@ class VoiceSynthesizer:
 
     # ── Synthesis (async for FastAPI) ────────────────────────────────────
 
-    async def synthesize_async(self, text: str, emotion: str, intensity: float = 1.0) -> Tuple[str, VoiceParameters]:
+    async def synthesize_async(
+        self, text: str, emotion: str, intensity: float = 1.0,
+        language: str = "en", voice: str = "",
+    ) -> Tuple[str, VoiceParameters]:
         """Async version for use inside FastAPI event loop."""
-        params = self.get_voice_parameters(emotion, intensity)
+        params = self.get_voice_parameters(emotion, intensity, language)
+        resolved_voice = self._resolve_voice(voice, language)
         filename = f"speech_{uuid.uuid4().hex[:10]}.mp3"
         output_path = os.path.join(self.output_dir, filename)
 
         if self._engine == "edge-tts":
-            await self._synthesize_edge_tts(text, params, output_path)
+            await self._synthesize_edge_tts(text, params, output_path, resolved_voice)
         elif self._engine == "espeak-ng":
             filename = filename.replace(".mp3", ".wav")
             output_path = output_path.replace(".mp3", ".wav")
-            self._synthesize_espeak(text, params, output_path)
+            self._synthesize_espeak(text, params, output_path, language)
         elif self._engine == "pyttsx3":
             filename = filename.replace(".mp3", ".wav")
             output_path = output_path.replace(".mp3", ".wav")
@@ -221,36 +277,39 @@ class VoiceSynthesizer:
 
     # ── Engine-specific implementations ──────────────────────────────────
 
-    async def _synthesize_edge_tts(self, text: str, params: VoiceParameters, path: str):
+    async def _synthesize_edge_tts(self, text: str, params: VoiceParameters, path: str, voice: str):
         """Microsoft Edge Neural TTS — best quality, SSML prosody control."""
         import edge_tts
 
         communicate = edge_tts.Communicate(
             text=text,
-            voice=self.voice,
+            voice=voice,
             rate=params.rate,
             pitch=params.pitch,
             volume=params.volume,
         )
         await communicate.save(path)
 
-    def _synthesize_espeak(self, text: str, params: VoiceParameters, path: str):
+    def _synthesize_espeak(self, text: str, params: VoiceParameters, path: str, language: str = "en"):
         """espeak-ng — offline, full pitch/rate/amplitude control."""
-        # Convert our percentage/Hz parameters to espeak-ng native values
-        base_rate = 175  # default WPM
+        base_rate = 175
         rate_pct = int(params.rate.replace("%", "").replace("+", ""))
         rate = int(base_rate * (1 + rate_pct / 100))
 
-        base_pitch = 50  # default (0-99 scale)
+        base_pitch = 50
         pitch_hz = int(params.pitch.replace("Hz", "").replace("+", ""))
         pitch = max(0, min(99, base_pitch + pitch_hz * 2))
 
-        base_amp = 100  # default (0-200 scale)
+        base_amp = 100
         vol_pct = int(params.volume.replace("%", "").replace("+", ""))
         amplitude = max(0, min(200, int(base_amp * (1 + vol_pct / 100))))
 
+        # Map language to espeak voice
+        espeak_voice = {"en": "en", "hi": "hi", "hinglish": "hi"}.get(language, "en")
+
         cmd = [
             "espeak-ng",
+            "-v", espeak_voice,
             "-s", str(rate),
             "-p", str(pitch),
             "-a", str(amplitude),

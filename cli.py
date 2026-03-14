@@ -3,10 +3,14 @@
 CLI interface for The Empathy Engine.
 
 Usage:
-    python cli.py "I'm so excited about this!"     # Single text
-    python cli.py                                   # Interactive mode
+    python cli.py "I'm so excited about this!"                     # English (default)
+    python cli.py --lang hi "मुझे बहुत खुशी हो रही है!"              # Hindi
+    python cli.py --lang hinglish "Yaar bahut maza aa raha hai!"   # Hinglish
+    python cli.py --voice en-US-GuyNeural "Hello world!"           # Specific voice
+    python cli.py                                                   # Interactive mode
 """
 
+import argparse
 import os
 import sys
 
@@ -14,19 +18,28 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
+LANG_NAMES = {"en": "English", "hi": "Hindi", "hinglish": "Hinglish", "auto": "Auto"}
+
+
 def print_banner():
     print()
     print("=" * 62)
     print("   The Empathy Engine — Giving AI a Human Voice")
+    print("   Supports: English | Hindi | Hinglish")
     print("=" * 62)
 
 
-def process_text(engine, text: str):
+def process_text(engine, text: str, language: str = "auto", voice: str = ""):
     """Analyze and synthesize a single text input."""
     print(f'\n  Input: "{text}"')
+    print(f"  Language: {LANG_NAMES.get(language, language)}")
     print("-" * 62)
 
-    result = engine.process(text)
+    result = engine.process(text, language=language, voice=voice)
+
+    # ── Translation info ──
+    if result.emotion.translated_text:
+        print(f"\n  Translated: \"{result.emotion.translated_text}\"")
 
     # ── Emotion analysis ──
     print(f"\n  Detected Emotion:  {result.emotion.emotion.upper()}")
@@ -48,6 +61,7 @@ def process_text(engine, text: str):
     print(f"    Rate:    {result.voice_params.rate:>7}")
     print(f"    Pitch:   {result.voice_params.pitch:>7}")
     print(f"    Volume:  {result.voice_params.volume:>7}")
+    print(f"    Voice:   {result.voice_used}")
     print(f"    Effect:  {result.voice_params.description}")
 
     # ── SSML ──
@@ -61,10 +75,13 @@ def process_text(engine, text: str):
     print("-" * 62)
 
 
-def interactive_mode(engine):
+def interactive_mode(engine, language: str = "auto", voice: str = ""):
     """Run interactive prompt loop."""
-    print("\n  Interactive Mode — type text and hear it spoken with emotion!")
-    print("  Type 'quit' or 'q' to exit.\n")
+    lang_label = LANG_NAMES.get(language, language)
+    print(f"\n  Interactive Mode ({lang_label}) — type text and hear it spoken with emotion!")
+    print("  Commands: 'quit' to exit, 'lang <en|hi|hinglish>' to switch language\n")
+
+    current_lang = language
 
     while True:
         try:
@@ -72,9 +89,17 @@ def interactive_mode(engine):
             if text.lower() in ("quit", "exit", "q"):
                 print("\n  Goodbye!\n")
                 break
+            if text.lower().startswith("lang "):
+                new_lang = text.split(maxsplit=1)[1].strip().lower()
+                if new_lang in ("en", "hi", "hinglish", "auto"):
+                    current_lang = new_lang
+                    print(f"  Language set to: {LANG_NAMES.get(current_lang, current_lang)}\n")
+                else:
+                    print(f"  Unknown language. Use: en, hi, hinglish, auto\n")
+                continue
             if not text:
                 continue
-            process_text(engine, text)
+            process_text(engine, text, language=current_lang, voice=voice)
             print()
         except (KeyboardInterrupt, EOFError):
             print("\n\n  Goodbye!\n")
@@ -82,6 +107,13 @@ def interactive_mode(engine):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="The Empathy Engine — CLI")
+    parser.add_argument("text", nargs="*", help="Text to synthesize (omit for interactive mode)")
+    parser.add_argument("--lang", default="auto", choices=["auto", "en", "hi", "hinglish"],
+                        help="Language: en, hi, hinglish, or auto (default: auto)")
+    parser.add_argument("--voice", default="", help="Voice ID (e.g. hi-IN-SwaraNeural)")
+    args = parser.parse_args()
+
     print_banner()
 
     from app.empathy_engine import EmpathyEngine
@@ -89,11 +121,11 @@ def main():
     engine = EmpathyEngine(output_dir="output")
     print()
 
-    if len(sys.argv) > 1:
-        text = " ".join(sys.argv[1:])
-        process_text(engine, text)
+    if args.text:
+        text = " ".join(args.text)
+        process_text(engine, text, language=args.lang, voice=args.voice)
     else:
-        interactive_mode(engine)
+        interactive_mode(engine, language=args.lang, voice=args.voice)
 
 
 if __name__ == "__main__":

@@ -2,12 +2,14 @@
 FastAPI Web Application for The Empathy Engine.
 
 Provides:
-  GET  /               — Web UI (interactive demo page)
-  POST /api/synthesize  — Emotion detection + speech synthesis
-  GET  /audio/{file}    — Serve generated audio files
+  GET  /                    — Web UI (interactive demo page)
+  POST /api/synthesize       — Emotion detection + speech synthesis
+  GET  /api/voices/{lang}    — List available voices for a language
+  GET  /audio/{file}         — Serve generated audio files
 """
 
 import os
+from typing import Optional
 
 from fastapi import FastAPI
 from fastapi.requests import Request
@@ -21,8 +23,8 @@ from .empathy_engine import EmpathyEngine
 
 app = FastAPI(
     title="The Empathy Engine",
-    description="Giving AI a Human Voice — emotionally modulated TTS service",
-    version="1.0.0",
+    description="Giving AI a Human Voice — emotionally modulated multilingual TTS",
+    version="2.0.0",
 )
 
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
@@ -38,6 +40,8 @@ engine = EmpathyEngine(output_dir=OUTPUT_DIR)
 
 class SynthesizeRequest(BaseModel):
     text: str
+    language: Optional[str] = "auto"   # "en", "hi", "hinglish", or "auto"
+    voice: Optional[str] = ""          # voice ID or "" for default
 
 
 # ── Routes ───────────────────────────────────────────────────────────────
@@ -48,13 +52,24 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/api/voices/{language}")
+async def list_voices(language: str):
+    """Return available voices for a given language."""
+    voices = engine.get_available_voices(language)
+    return {"language": language, "voices": voices}
+
+
 @app.post("/api/synthesize")
 async def synthesize(req: SynthesizeRequest):
     """
     Main endpoint: analyze emotion and generate modulated speech.
 
-    Request body: {"text": "Your text here"}
-    Returns: emotion analysis, voice parameters, SSML, and audio URL
+    Request body:
+      {
+        "text": "Your text here",
+        "language": "en" | "hi" | "hinglish" | "auto",
+        "voice": "en-US-AriaNeural" | "" (for default)
+      }
     """
     text = req.text.strip()
 
@@ -63,14 +78,17 @@ async def synthesize(req: SynthesizeRequest):
     if len(text) > 2000:
         return JSONResponse({"error": "Text too long (max 2000 characters)."}, status_code=400)
 
-    result = await engine.process_async(text)
+    result = await engine.process_async(
+        text,
+        language=req.language or "auto",
+        voice=req.voice or "",
+    )
     return result.to_dict()
 
 
 @app.get("/audio/{filename}")
 async def serve_audio(filename: str):
     """Serve a generated audio file."""
-    # Sanitize filename to prevent directory traversal
     safe_name = os.path.basename(filename)
     path = os.path.join(OUTPUT_DIR, safe_name)
 

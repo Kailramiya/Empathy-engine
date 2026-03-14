@@ -18,7 +18,7 @@
 
         /* ── Layout ────────────────────────────────────────────────── */
         .container {
-            max-width: 780px;
+            max-width: 800px;
             margin: 0 auto;
             padding: 2rem 1.5rem 4rem;
         }
@@ -40,6 +40,20 @@
         header p {
             color: #9a9abf;
             font-size: 1.05rem;
+        }
+        .lang-badges {
+            margin-top: 0.6rem;
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .lang-badge {
+            font-size: 0.72rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            color: #9a9abf;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
         /* ── Cards ─────────────────────────────────────────────────── */
@@ -83,12 +97,54 @@
         }
         textarea::placeholder { color: #6a6a8a; }
 
+        /* ── Controls row ──────────────────────────────────────────── */
+        .controls-row {
+            display: flex;
+            gap: 0.8rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            flex: 1;
+            min-width: 140px;
+        }
+        .control-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8888aa;
+            margin-bottom: 0.3rem;
+        }
+        select {
+            width: 100%;
+            padding: 0.55rem 0.8rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(0, 0, 0, 0.3);
+            color: #e0e0e0;
+            font-size: 0.88rem;
+            font-family: inherit;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239a9abf' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.7rem center;
+        }
+        select:focus { outline: none; border-color: #667eea; }
+
         /* ── Example buttons ───────────────────────────────────────── */
         .examples {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
-            margin-top: 0.8rem;
+            margin-top: 1rem;
+        }
+        .example-label {
+            font-size: 0.8rem;
+            color: #6a6a8a;
+            padding-top: 0.15rem;
+            width: 100%;
+            margin-bottom: -0.2rem;
         }
         .example-btn {
             padding: 0.35rem 0.75rem;
@@ -146,6 +202,7 @@
             align-items: center;
             gap: 1rem;
             margin-bottom: 1.2rem;
+            flex-wrap: wrap;
         }
         .emotion-badge {
             display: inline-flex;
@@ -163,7 +220,6 @@
             font-size: 0.95rem;
         }
         .method-badge {
-            margin-left: auto;
             padding: 0.2rem 0.6rem;
             border-radius: 6px;
             font-size: 0.72rem;
@@ -172,6 +228,17 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+        .translated-text {
+            width: 100%;
+            margin-top: 0.5rem;
+            padding: 0.6rem 0.8rem;
+            border-radius: 8px;
+            background: rgba(102, 126, 234, 0.08);
+            border: 1px solid rgba(102, 126, 234, 0.15);
+            font-size: 0.85rem;
+            color: #a0b0e0;
+        }
+        .translated-text span { color: #667eea; font-weight: 600; }
 
         /* ── Score bars ────────────────────────────────────────────── */
         .score-row {
@@ -239,6 +306,13 @@
             font-style: italic;
             margin-top: 0.5rem;
         }
+
+        .voice-info {
+            margin-top: 0.6rem;
+            font-size: 0.82rem;
+            color: #7a7a9a;
+        }
+        .voice-info strong { color: #9a9abf; }
 
         /* ── SSML display ──────────────────────────────────────────── */
         .ssml-block {
@@ -353,6 +427,7 @@
             header h1 { font-size: 1.6rem; }
             .params-grid { grid-template-columns: 1fr; }
             .audio-section { flex-direction: column; }
+            .controls-row { flex-direction: column; }
         }
     </style>
 </head>
@@ -362,22 +437,53 @@
         <header>
             <h1>The Empathy Engine</h1>
             <p>Giving AI a Human Voice — Emotionally Modulated Text-to-Speech</p>
+            <div class="lang-badges">
+                <span class="lang-badge">English</span>
+                <span class="lang-badge">Hindi</span>
+                <span class="lang-badge">Hinglish</span>
+                <span class="lang-badge">Neural Voices</span>
+            </div>
         </header>
 
         <!-- Input Card -->
         <div class="card">
             <div class="card-title">Text Input</div>
-            <textarea id="textInput" placeholder="Type or paste text here to hear it spoken with emotion...&#10;&#10;Try something expressive like: &quot;I just got promoted! This is the best day of my life!&quot;"></textarea>
+            <textarea id="textInput" placeholder="Type or paste text in English, Hindi, or Hinglish...&#10;&#10;Examples:&#10;  English: &quot;I just got promoted! This is the best day!&quot;&#10;  Hindi: &quot;मुझे आज बहुत खुशी हो रही है!&quot;&#10;  Hinglish: &quot;Yaar aaj bahut maza aa raha hai!&quot;"></textarea>
 
-            <div class="examples">
-                <span style="font-size:0.8rem; color:#6a6a8a; padding-top:0.15rem;">Try:</span>
-                <button class="example-btn" onclick="setExample(0)">Happy</button>
-                <button class="example-btn" onclick="setExample(1)">Angry</button>
-                <button class="example-btn" onclick="setExample(2)">Sad</button>
-                <button class="example-btn" onclick="setExample(3)">Fearful</button>
-                <button class="example-btn" onclick="setExample(4)">Surprised</button>
-                <button class="example-btn" onclick="setExample(5)">Neutral</button>
-                <button class="example-btn" onclick="setExample(6)">Subtle Joy</button>
+            <!-- Language & Voice Controls -->
+            <div class="controls-row">
+                <div class="control-group">
+                    <div class="control-label">Language</div>
+                    <select id="languageSelect" onchange="onLanguageChange()">
+                        <option value="auto">Auto-detect</option>
+                        <option value="en">English</option>
+                        <option value="hi">Hindi</option>
+                        <option value="hinglish">Hinglish</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <div class="control-label">Voice</div>
+                    <select id="voiceSelect">
+                        <option value="">Default (Auto)</option>
+                        <optgroup label="English" id="voicesEn">
+                            <option value="en-US-AriaNeural">Aria (US Female, Expressive)</option>
+                            <option value="en-US-JennyNeural">Jenny (US Female, Warm)</option>
+                            <option value="en-US-GuyNeural">Guy (US Male, Casual)</option>
+                            <option value="en-US-DavisNeural">Davis (US Male, Professional)</option>
+                            <option value="en-GB-SoniaNeural">Sonia (UK Female, British)</option>
+                            <option value="en-IN-NeerjaNeural">Neerja (Indian English Female)</option>
+                        </optgroup>
+                        <optgroup label="Hindi / Hinglish" id="voicesHi">
+                            <option value="hi-IN-SwaraNeural">Swara (Hindi Female)</option>
+                            <option value="hi-IN-MadhurNeural">Madhur (Hindi Male)</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Example buttons -->
+            <div class="examples" id="exampleButtons">
+                <span class="example-label">Try examples:</span>
             </div>
 
             <button class="btn-generate" id="generateBtn" onclick="generate()">
@@ -398,6 +504,7 @@
                     <span class="emotion-badge" id="emotionBadge"></span>
                     <span class="confidence-text" id="confidenceText"></span>
                     <span class="method-badge" id="methodBadge"></span>
+                    <div class="translated-text" id="translatedText" style="display:none;"></div>
                 </div>
                 <div id="scoreBars"></div>
             </div>
@@ -420,6 +527,7 @@
                     </div>
                 </div>
                 <div class="param-desc" id="paramDesc"></div>
+                <div class="voice-info" id="voiceInfo"></div>
 
                 <button class="ssml-toggle" onclick="toggleSsml()">Show SSML Markup</button>
                 <div class="ssml-block" id="ssmlBlock" style="display:none;"></div>
@@ -436,37 +544,88 @@
         </div>
 
         <footer>
-            Built with FastAPI, HuggingFace Transformers & Edge-TTS<br>
-            <a href="https://github.com" target="_blank">The Empathy Engine</a> — AI Intern Assessment
+            Built with FastAPI, HuggingFace Transformers & Edge-TTS (Neural Voices)<br>
+            The Empathy Engine — AI Intern Assessment
         </footer>
     </div>
 
     <script>
-        // ── Example texts ──────────────────────────────────────────
-        const examples = [
-            "I just got promoted! This is the best day of my life! I can't believe it actually happened!",
-            "I am absolutely furious about this! How could they make such a terrible decision? This is unacceptable!",
-            "I feel so lonely and hopeless. Nothing seems to go right anymore. I miss the way things used to be.",
-            "I'm really worried about the test results. What if something is seriously wrong? I can't stop thinking about it.",
-            "Wait, WHAT?! You're telling me we won the lottery? I can't believe this is real! Are you serious right now?!",
-            "The quarterly report shows a 3% increase in operational efficiency across all departments.",
-            "That's pretty nice. I think things are looking up a little.",
-        ];
+        // ── Example texts per language ─────────────────────────────
+        const examples = {
+            en: [
+                { label: "Happy", text: "I just got promoted! This is the best day of my life! I can't believe it!" },
+                { label: "Angry", text: "I am absolutely furious about this! How could they make such a terrible decision?!" },
+                { label: "Sad", text: "I feel so lonely and hopeless. Nothing seems to go right anymore." },
+                { label: "Fearful", text: "I'm really worried about the results. What if something goes terribly wrong?" },
+                { label: "Surprised", text: "Wait, WHAT?! You're telling me we won?! I can't believe this is real!" },
+                { label: "Neutral", text: "The quarterly report shows a 3% increase in operational efficiency." },
+            ],
+            hi: [
+                { label: "खुशी", text: "मुझे आज बहुत खुशी हो रही है! मेरा प्रमोशन हो गया! यह सबसे अच्छा दिन है!" },
+                { label: "गुस्सा", text: "मुझे बहुत गुस्सा आ रहा है! यह बिल्कुल गलत है! कैसे ऐसा हो सकता है?!" },
+                { label: "दुख", text: "मुझे बहुत दुख हो रहा है। मैं बहुत अकेला महसूस कर रहा हूं। कुछ भी ठीक नहीं है।" },
+                { label: "डर", text: "मुझे बहुत डर लग रहा है। परीक्षा के नतीजे आने वाले हैं। क्या होगा?" },
+                { label: "हैरानी", text: "अरे वाह! यह तो कमाल हो गया! मुझे विश्वास ही नहीं हो रहा!" },
+                { label: "तटस्थ", text: "आज मौसम ठीक है। तापमान सामान्य है और हवा शांत है।" },
+            ],
+            hinglish: [
+                { label: "Khushi", text: "Yaar aaj mera din ban gaya! Promotion mil gaya! Bahut maza aa raha hai!" },
+                { label: "Gussa", text: "Mujhe bahut gussa aa raha hai yaar! Yeh bilkul bakwas hai! Kaise ho sakta hai?!" },
+                { label: "Dukh", text: "Bahut bura lag raha hai yaar. Koi baat nahi karti. Bahut akela feel ho raha hai." },
+                { label: "Darr", text: "Mujhe bahut darr lag raha hai. Result aane wala hai. Kya hoga pata nahi." },
+                { label: "Surprise", text: "Are yaar sach mein?! Lottery lag gayi! Believe nahi ho raha! Kya baat hai!" },
+                { label: "Normal", text: "Aaj office mein meeting thi. Report submit kar di. Ab ghar ja raha hoon." },
+            ],
+        };
+
+        // Currently displayed example language
+        let currentExampleLang = 'en';
 
         const emotionEmojis = {
             joy: '😊', anger: '😡', sadness: '😢',
             fear: '😰', surprise: '😲', disgust: '🤢', neutral: '😐'
         };
 
-        function setExample(idx) {
-            document.getElementById('textInput').value = examples[idx];
-            document.getElementById('textInput').focus();
+        const langNames = { en: 'English', hi: 'Hindi', hinglish: 'Hinglish', auto: 'Auto' };
+
+        // ── Initialize examples ────────────────────────────────────
+        function renderExamples(lang) {
+            const key = (lang === 'auto') ? 'en' : lang;
+            currentExampleLang = key;
+            const container = document.getElementById('exampleButtons');
+            const langExamples = examples[key] || examples.en;
+            container.innerHTML = '<span class="example-label">Try examples (' + (langNames[key] || key) + '):</span>';
+            langExamples.forEach((ex, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'example-btn';
+                btn.textContent = ex.label;
+                btn.onclick = () => {
+                    document.getElementById('textInput').value = ex.text;
+                    // Auto-set language if not auto
+                    if (document.getElementById('languageSelect').value === 'auto' && key !== 'en') {
+                        document.getElementById('languageSelect').value = key;
+                        onLanguageChange();
+                    }
+                };
+                container.appendChild(btn);
+            });
         }
+
+        function onLanguageChange() {
+            const lang = document.getElementById('languageSelect').value;
+            renderExamples(lang);
+        }
+
+        // Initialize on load
+        renderExamples('en');
 
         // ── Main generate function ─────────────────────────────────
         async function generate() {
             const text = document.getElementById('textInput').value.trim();
             if (!text) { showError('Please enter some text.'); return; }
+
+            const language = document.getElementById('languageSelect').value;
+            const voice = document.getElementById('voiceSelect').value;
 
             const btn = document.getElementById('generateBtn');
             const btnText = document.getElementById('btnText');
@@ -482,7 +641,7 @@
                 const resp = await fetch('/api/synthesize', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text }),
+                    body: JSON.stringify({ text, language, voice }),
                 });
 
                 const data = await resp.json();
@@ -511,6 +670,15 @@
             document.getElementById('confidenceText').textContent = (e.confidence * 100).toFixed(1) + '% confidence';
             document.getElementById('methodBadge').textContent = e.method === 'transformer' ? 'Transformer Model' : 'VADER + Keywords';
 
+            // Show translation if present
+            const transEl = document.getElementById('translatedText');
+            if (e.translated_text) {
+                transEl.innerHTML = '<span>Translated for analysis:</span> "' + escapeHtml(e.translated_text) + '"';
+                transEl.style.display = 'block';
+            } else {
+                transEl.style.display = 'none';
+            }
+
             // Score bars
             const barsContainer = document.getElementById('scoreBars');
             barsContainer.innerHTML = '';
@@ -532,6 +700,11 @@
             setParam('paramPitch', v.pitch);
             setParam('paramVolume', v.volume);
             document.getElementById('paramDesc').textContent = v.description;
+
+            // Voice info
+            const langLabel = langNames[data.language] || data.language;
+            document.getElementById('voiceInfo').innerHTML =
+                'Voice: <strong>' + escapeHtml(data.voice_used) + '</strong> &middot; Language: <strong>' + langLabel + '</strong>';
 
             // SSML
             document.getElementById('ssmlBlock').textContent = v.ssml;
@@ -574,7 +747,13 @@
         }
         function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
 
-        // Allow Ctrl+Enter to generate
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // Ctrl+Enter to generate
         document.getElementById('textInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
         });
