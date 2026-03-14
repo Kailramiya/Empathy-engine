@@ -1,0 +1,277 @@
+"""
+Voice Synthesizer Module for The Empathy Engine.
+
+Maps detected emotions to vocal parameters (rate, pitch, volume) and
+generates expressive speech audio with intensity scaling.
+
+TTS Engines (auto-detected, in priority order):
+  1. edge-tts  — Microsoft Neural voices, SSML prosody control, free (needs internet)
+  2. espeak-ng  — Offline, full pitch/rate/amplitude control via subprocess
+  3. pyttsx3    — Offline fallback, rate + volume control
+
+Emotion-to-Voice Mapping Design Rationale:
+  The parameter choices are grounded in prosody research from affective computing.
+  For example, joy correlates with faster speech rate and raised pitch (F0),
+  while sadness is associated with slower rate and lowered pitch.
+  See: Scherer, K.R. (2003) "Vocal communication of emotion"
+"""
+
+import asyncio
+import os
+import shutil
+import subprocess
+import uuid
+from dataclasses import dataclass
+from typing import Tuple
+
+
+@dataclass
+class VoiceParameters:
+    """Vocal parameters applied to the TTS output."""
+    rate: str           # e.g. "+15%"
+    pitch: str          # e.g. "+8Hz"
+    volume: str         # e.g. "+10%"
+    description: str    # Human-readable explanation
+    ssml: str           # Generated SSML markup
+
+
+# ── Emotion → Voice Profile Mapping ──────────────────────────────────────
+#
+# Each profile specifies BASE modulation values for rate (%), pitch (Hz),
+# and volume (%).  These are scaled by the emotion's confidence (intensity)
+# before being applied to the TTS engine.
+#
+# │ Emotion   │ Rate  │ Pitch │ Volume │ Rationale                         │
+# │───────────│───────│───────│────────│───────────────────────────────────│
+# │ joy       │ +18%  │ +10Hz │ +12%   │ Energetic, upbeat, confident      │
+# │ anger     │ +8%   │  -6Hz │ +25%   │ Forceful, intense, commanding     │
+# │ sadness   │ -25%  │ -10Hz │ -18%   │ Slow, somber, subdued             │
+# │ fear      │ +22%  │ +12Hz │ -12%   │ Rapid, tense, anxious             │
+# │ surprise  │ +12%  │ +15Hz │ +18%   │ Exclamatory, high-pitched         │
+# │ disgust   │ -12%  │  -7Hz │  -6%   │ Deliberate, disdainful            │
+# │ neutral   │   0%  │  0Hz  │   0%   │ Natural baseline                  │
+
+EMOTION_PROFILES = {
+    "joy": {
+        "rate": 18,
+        "pitch": 10,
+        "volume": 12,
+        "desc": "Energetic, upbeat delivery with raised pitch and faster pace",
+    },
+    "anger": {
+        "rate": 8,
+        "pitch": -6,
+        "volume": 25,
+        "desc": "Forceful, intense delivery with lower pitch and amplified volume",
+    },
+    "sadness": {
+        "rate": -25,
+        "pitch": -10,
+        "volume": -18,
+        "desc": "Slow, somber delivery with lowered pitch and subdued volume",
+    },
+    "fear": {
+        "rate": 22,
+        "pitch": 12,
+        "volume": -12,
+        "desc": "Rapid, tense delivery with raised pitch — conveying anxiety",
+    },
+    "surprise": {
+        "rate": 12,
+        "pitch": 15,
+        "volume": 18,
+        "desc": "Exclamatory delivery with notably raised pitch and volume",
+    },
+    "disgust": {
+        "rate": -12,
+        "pitch": -7,
+        "volume": -6,
+        "desc": "Deliberate, disdainful delivery with lowered pitch",
+    },
+    "neutral": {
+        "rate": 0,
+        "pitch": 0,
+        "volume": 0,
+        "desc": "Natural, balanced delivery — no emotional modulation",
+    },
+}
+
+
+class VoiceSynthesizer:
+    """
+    Generates emotionally modulated speech audio.
+
+    Automatically selects the best available TTS engine and applies
+    emotion-driven prosody adjustments with intensity scaling.
+    """
+
+    def __init__(self, output_dir: str = "output", voice: str = "en-US-AriaNeural"):
+        self.output_dir = output_dir
+        self.voice = voice
+        self._engine = self._detect_engine()
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"[Empathy Engine] ✓ TTS engine: {self._engine}")
+
+    @property
+    def engine_name(self) -> str:
+        return self._engine
+
+    # ── Engine detection ─────────────────────────────────────────────────
+
+    def _detect_engine(self) -> str:
+        """Auto-detect the best available TTS engine."""
+        try:
+            import edge_tts  # noqa: F401
+            return "edge-tts"
+        except ImportError:
+            pass
+
+        if shutil.which("espeak-ng"):
+            return "espeak-ng"
+
+        try:
+            import pyttsx3  # noqa: F401
+            return "pyttsx3"
+        except ImportError:
+            pass
+
+        raise RuntimeError(
+            "No TTS engine found. Install one of: edge-tts, espeak-ng, pyttsx3"
+        )
+
+    # ── Parameter computation ────────────────────────────────────────────
+
+    def get_voice_parameters(self, emotion: str, intensity: float = 1.0) -> VoiceParameters:
+        """
+        Compute voice parameters for a given emotion and intensity.
+
+        Intensity scaling: the raw profile values are multiplied by the
+        confidence score so that "This is good" (confidence 0.6) gets a
+        subtle modulation while "This is the BEST NEWS EVER!" (confidence 0.95)
+        gets a dramatic shift.
+        """
+        profile = EMOTION_PROFILES.get(emotion, EMOTION_PROFILES["neutral"])
+
+        scaled_rate = int(profile["rate"] * intensity)
+        scaled_pitch = int(profile["pitch"] * intensity)
+        scaled_volume = int(profile["volume"] * intensity)
+
+        rate_str = f"{'+' if scaled_rate >= 0 else ''}{scaled_rate}%"
+        pitch_str = f"{'+' if scaled_pitch >= 0 else ''}{scaled_pitch}Hz"
+        volume_str = f"{'+' if scaled_volume >= 0 else ''}{scaled_volume}%"
+
+        # Generate W3C-compliant SSML
+        ssml = (
+            '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">\n'
+            f'  <prosody rate="{rate_str}" pitch="{pitch_str}" volume="{volume_str}">\n'
+            "    {text}\n"
+            "  </prosody>\n"
+            "</speak>"
+        )
+
+        return VoiceParameters(
+            rate=rate_str,
+            pitch=pitch_str,
+            volume=volume_str,
+            description=profile["desc"],
+            ssml=ssml,
+        )
+
+    # ── Synthesis (sync wrapper) ─────────────────────────────────────────
+
+    def synthesize(self, text: str, emotion: str, intensity: float = 1.0) -> Tuple[str, VoiceParameters]:
+        """Generate speech audio file. Returns (filename, parameters)."""
+        params = self.get_voice_parameters(emotion, intensity)
+        filename = f"speech_{uuid.uuid4().hex[:10]}.mp3"
+        output_path = os.path.join(self.output_dir, filename)
+
+        if self._engine == "edge-tts":
+            asyncio.run(self._synthesize_edge_tts(text, params, output_path))
+        elif self._engine == "espeak-ng":
+            filename = filename.replace(".mp3", ".wav")
+            output_path = output_path.replace(".mp3", ".wav")
+            self._synthesize_espeak(text, params, output_path)
+        elif self._engine == "pyttsx3":
+            filename = filename.replace(".mp3", ".wav")
+            output_path = output_path.replace(".mp3", ".wav")
+            self._synthesize_pyttsx3(text, params, output_path)
+
+        return filename, params
+
+    # ── Synthesis (async for FastAPI) ────────────────────────────────────
+
+    async def synthesize_async(self, text: str, emotion: str, intensity: float = 1.0) -> Tuple[str, VoiceParameters]:
+        """Async version for use inside FastAPI event loop."""
+        params = self.get_voice_parameters(emotion, intensity)
+        filename = f"speech_{uuid.uuid4().hex[:10]}.mp3"
+        output_path = os.path.join(self.output_dir, filename)
+
+        if self._engine == "edge-tts":
+            await self._synthesize_edge_tts(text, params, output_path)
+        elif self._engine == "espeak-ng":
+            filename = filename.replace(".mp3", ".wav")
+            output_path = output_path.replace(".mp3", ".wav")
+            self._synthesize_espeak(text, params, output_path)
+        elif self._engine == "pyttsx3":
+            filename = filename.replace(".mp3", ".wav")
+            output_path = output_path.replace(".mp3", ".wav")
+            self._synthesize_pyttsx3(text, params, output_path)
+
+        return filename, params
+
+    # ── Engine-specific implementations ──────────────────────────────────
+
+    async def _synthesize_edge_tts(self, text: str, params: VoiceParameters, path: str):
+        """Microsoft Edge Neural TTS — best quality, SSML prosody control."""
+        import edge_tts
+
+        communicate = edge_tts.Communicate(
+            text=text,
+            voice=self.voice,
+            rate=params.rate,
+            pitch=params.pitch,
+            volume=params.volume,
+        )
+        await communicate.save(path)
+
+    def _synthesize_espeak(self, text: str, params: VoiceParameters, path: str):
+        """espeak-ng — offline, full pitch/rate/amplitude control."""
+        # Convert our percentage/Hz parameters to espeak-ng native values
+        base_rate = 175  # default WPM
+        rate_pct = int(params.rate.replace("%", "").replace("+", ""))
+        rate = int(base_rate * (1 + rate_pct / 100))
+
+        base_pitch = 50  # default (0-99 scale)
+        pitch_hz = int(params.pitch.replace("Hz", "").replace("+", ""))
+        pitch = max(0, min(99, base_pitch + pitch_hz * 2))
+
+        base_amp = 100  # default (0-200 scale)
+        vol_pct = int(params.volume.replace("%", "").replace("+", ""))
+        amplitude = max(0, min(200, int(base_amp * (1 + vol_pct / 100))))
+
+        cmd = [
+            "espeak-ng",
+            "-s", str(rate),
+            "-p", str(pitch),
+            "-a", str(amplitude),
+            "-w", path,
+            text,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True)
+
+    def _synthesize_pyttsx3(self, text: str, params: VoiceParameters, path: str):
+        """pyttsx3 — offline fallback with rate + volume control."""
+        import pyttsx3
+
+        engine = pyttsx3.init()
+
+        base_rate = engine.getProperty("rate")
+        rate_pct = int(params.rate.replace("%", "").replace("+", ""))
+        engine.setProperty("rate", int(base_rate * (1 + rate_pct / 100)))
+
+        base_vol = engine.getProperty("volume")
+        vol_pct = int(params.volume.replace("%", "").replace("+", ""))
+        engine.setProperty("volume", max(0.0, min(1.0, base_vol * (1 + vol_pct / 100))))
+
+        engine.save_to_file(text, path)
+        engine.runAndWait()

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Empathy Engine — Giving AI a Human Voice</title>
+    <style>
+        /* ── Reset & Base ──────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #1a1a3e, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        /* ── Layout ────────────────────────────────────────────────── */
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        /* ── Header ────────────────────────────────────────────────── */
+        header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+        header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.3rem;
+        }
+        header p {
+            color: #9a9abf;
+            font-size: 1.05rem;
+        }
+
+        /* ── Cards ─────────────────────────────────────────────────── */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 1.8rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.3s;
+        }
+        .card:hover { border-color: rgba(255, 255, 255, 0.15); }
+
+        .card-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #8888aa;
+            margin-bottom: 1rem;
+        }
+
+        /* ── Input area ────────────────────────────────────────────── */
+        textarea {
+            width: 100%;
+            min-height: 110px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 1rem;
+            color: #e8e8f0;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        }
+        textarea::placeholder { color: #6a6a8a; }
+
+        /* ── Example buttons ───────────────────────────────────────── */
+        .examples {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+        .example-btn {
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: #b0b0cc;
+            font-size: 0.82rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .example-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.25);
+            color: #e0e0f0;
+        }
+
+        /* ── Generate button ───────────────────────────────────────── */
+        .btn-generate {
+            display: block;
+            width: 100%;
+            padding: 0.85rem;
+            margin-top: 1.2rem;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            letter-spacing: 0.5px;
+        }
+        .btn-generate:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.35); }
+        .btn-generate:active { transform: translateY(0); }
+        .btn-generate:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* ── Results (hidden until generated) ──────────────────────── */
+        .results { display: none; }
+        .results.visible { display: block; animation: fadeIn 0.4s ease; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Emotion display ───────────────────────────────────────── */
+        .emotion-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.2rem;
+        }
+        .emotion-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 1rem;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .confidence-text {
+            color: #9a9abf;
+            font-size: 0.95rem;
+        }
+        .method-badge {
+            margin-left: auto;
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            background: rgba(255, 255, 255, 0.07);
+            color: #8888aa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ── Score bars ────────────────────────────────────────────── */
+        .score-row {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            margin-bottom: 0.45rem;
+        }
+        .score-label {
+            width: 75px;
+            text-align: right;
+            font-size: 0.82rem;
+            color: #8888aa;
+        }
+        .score-bar-bg {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .score-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .score-pct {
+            width: 44px;
+            font-size: 0.82rem;
+            color: #8888aa;
+        }
+
+        /* ── Voice parameters ──────────────────────────────────────── */
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .param-card {
+            text-align: center;
+            padding: 1rem 0.5rem;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .param-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8888aa;
+            margin-bottom: 0.4rem;
+        }
+        .param-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+        .param-positive { color: #4ade80; }
+        .param-negative { color: #f87171; }
+        .param-zero     { color: #6b7280; }
+
+        .param-desc {
+            font-size: 0.88rem;
+            color: #9a9abf;
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+
+        /* ── SSML display ──────────────────────────────────────────── */
+        .ssml-block {
+            background: rgba(0, 0, 0, 0.35);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.82rem;
+            color: #a0d0ff;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .ssml-toggle {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #9a9abf;
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            margin-top: 0.8rem;
+            transition: all 0.2s;
+        }
+        .ssml-toggle:hover { border-color: #667eea; color: #c0c0e0; }
+
+        /* ── Audio player ──────────────────────────────────────────── */
+        .audio-section {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        audio {
+            flex: 1;
+            height: 44px;
+            border-radius: 22px;
+        }
+        audio::-webkit-media-controls-panel { background: rgba(255,255,255,0.08); }
+
+        .download-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.05);
+            color: #b0b0cc;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .download-btn:hover { background: rgba(255, 255, 255, 0.1); color: #e0e0f0; }
+
+        /* ── Loading spinner ───────────────────────────────────────── */
+        .spinner {
+            display: none;
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto;
+        }
+        .spinner.active { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Emotion colors ────────────────────────────────────────── */
+        .emotion-joy       { background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.3); }
+        .emotion-anger     { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+        .emotion-sadness   { background: rgba(96, 165, 250, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
+        .emotion-fear      { background: rgba(167, 139, 250, 0.15); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); }
+        .emotion-surprise  { background: rgba(251, 146, 60, 0.15); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
+        .emotion-disgust   { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+        .emotion-neutral   { background: rgba(156, 163, 175, 0.15); color: #9ca3af; border: 1px solid rgba(156, 163, 175, 0.3); }
+
+        .bar-joy       { background: linear-gradient(90deg, #facc15, #fbbf24); }
+        .bar-anger     { background: linear-gradient(90deg, #f87171, #ef4444); }
+        .bar-sadness   { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+        .bar-fear      { background: linear-gradient(90deg, #a78bfa, #8b5cf6); }
+        .bar-surprise  { background: linear-gradient(90deg, #fb923c, #f97316); }
+        .bar-disgust   { background: linear-gradient(90deg, #4ade80, #22c55e); }
+        .bar-neutral   { background: linear-gradient(90deg, #9ca3af, #6b7280); }
+
+        /* ── Error ─────────────────────────────────────────────────── */
+        .error-msg {
+            display: none;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+            padding: 0.8rem 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        /* ── Footer ────────────────────────────────────────────────── */
+        footer {
+            text-align: center;
+            padding-top: 2rem;
+            color: #55557a;
+            font-size: 0.8rem;
+        }
+        footer a { color: #667eea; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* ── Responsive ────────────────────────────────────────────── */
+        @media (max-width: 600px) {
+            .container { padding: 1.2rem 1rem 3rem; }
+            header h1 { font-size: 1.6rem; }
+            .params-grid { grid-template-columns: 1fr; }
+            .audio-section { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>The Empathy Engine</h1>
+            <p>Giving AI a Human Voice — Emotionally Modulated Text-to-Speech</p>
+        </header>
+
+        <!-- Input Card -->
+        <div class="card">
+            <div class="card-title">Text Input</div>
+            <textarea id="textInput" placeholder="Type or paste text here to hear it spoken with emotion...&#10;&#10;Try something expressive like: &quot;I just got promoted! This is the best day of my life!&quot;"></textarea>
+
+            <div class="examples">
+                <span style="font-size:0.8rem; color:#6a6a8a; padding-top:0.15rem;">Try:</span>
+                <button class="example-btn" onclick="setExample(0)">Happy</button>
+                <button class="example-btn" onclick="setExample(1)">Angry</button>
+                <button class="example-btn" onclick="setExample(2)">Sad</button>
+                <button class="example-btn" onclick="setExample(3)">Fearful</button>
+                <button class="example-btn" onclick="setExample(4)">Surprised</button>
+                <button class="example-btn" onclick="setExample(5)">Neutral</button>
+                <button class="example-btn" onclick="setExample(6)">Subtle Joy</button>
+            </div>
+
+            <button class="btn-generate" id="generateBtn" onclick="generate()">
+                <span id="btnText">Generate Empathetic Speech</span>
+                <div class="spinner" id="spinner"></div>
+            </button>
+
+            <div class="error-msg" id="errorMsg"></div>
+        </div>
+
+        <!-- Results -->
+        <div class="results" id="results">
+
+            <!-- Emotion Analysis Card -->
+            <div class="card">
+                <div class="card-title">Emotion Analysis</div>
+                <div class="emotion-header">
+                    <span class="emotion-badge" id="emotionBadge"></span>
+                    <span class="confidence-text" id="confidenceText"></span>
+                    <span class="method-badge" id="methodBadge"></span>
+                </div>
+                <div id="scoreBars"></div>
+            </div>
+
+            <!-- Voice Parameters Card -->
+            <div class="card">
+                <div class="card-title">Voice Modulation Parameters</div>
+                <div class="params-grid">
+                    <div class="param-card">
+                        <div class="param-label">Rate (Speed)</div>
+                        <div class="param-value" id="paramRate"></div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Pitch (Tone)</div>
+                        <div class="param-value" id="paramPitch"></div>
+                    </div>
+                    <div class="param-card">
+                        <div class="param-label">Volume</div>
+                        <div class="param-value" id="paramVolume"></div>
+                    </div>
+                </div>
+                <div class="param-desc" id="paramDesc"></div>
+
+                <button class="ssml-toggle" onclick="toggleSsml()">Show SSML Markup</button>
+                <div class="ssml-block" id="ssmlBlock" style="display:none;"></div>
+            </div>
+
+            <!-- Audio Output Card -->
+            <div class="card">
+                <div class="card-title">Audio Output</div>
+                <div class="audio-section">
+                    <audio controls id="audioPlayer"></audio>
+                    <a class="download-btn" id="downloadBtn" download>Download</a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            Built with FastAPI, HuggingFace Transformers & Edge-TTS<br>
+            <a href="https://github.com" target="_blank">The Empathy Engine</a> — AI Intern Assessment
+        </footer>
+    </div>
+
+    <script>
+        // ── Example texts ──────────────────────────────────────────
+        const examples = [
+            "I just got promoted! This is the best day of my life! I can't believe it actually happened!",
+            "I am absolutely furious about this! How could they make such a terrible decision? This is unacceptable!",
+            "I feel so lonely and hopeless. Nothing seems to go right anymore. I miss the way things used to be.",
+            "I'm really worried about the test results. What if something is seriously wrong? I can't stop thinking about it.",
+            "Wait, WHAT?! You're telling me we won the lottery? I can't believe this is real! Are you serious right now?!",
+            "The quarterly report shows a 3% increase in operational efficiency across all departments.",
+            "That's pretty nice. I think things are looking up a little.",
+        ];
+
+        const emotionEmojis = {
+            joy: '😊', anger: '😡', sadness: '😢',
+            fear: '😰', surprise: '😲', disgust: '🤢', neutral: '😐'
+        };
+
+        function setExample(idx) {
+            document.getElementById('textInput').value = examples[idx];
+            document.getElementById('textInput').focus();
+        }
+
+        // ── Main generate function ─────────────────────────────────
+        async function generate() {
+            const text = document.getElementById('textInput').value.trim();
+            if (!text) { showError('Please enter some text.'); return; }
+
+            const btn = document.getElementById('generateBtn');
+            const btnText = document.getElementById('btnText');
+            const spinner = document.getElementById('spinner');
+
+            btn.disabled = true;
+            btnText.textContent = 'Analyzing emotion & generating speech...';
+            spinner.classList.add('active');
+            hideError();
+            document.getElementById('results').classList.remove('visible');
+
+            try {
+                const resp = await fetch('/api/synthesize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Server error');
+
+                renderResults(data);
+            } catch (err) {
+                showError('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = 'Generate Empathetic Speech';
+                spinner.classList.remove('active');
+            }
+        }
+
+        // ── Render results ─────────────────────────────────────────
+        function renderResults(data) {
+            const e = data.emotion;
+            const v = data.voice_parameters;
+
+            // Emotion badge
+            const badge = document.getElementById('emotionBadge');
+            badge.className = 'emotion-badge emotion-' + e.detected;
+            badge.textContent = (emotionEmojis[e.detected] || '') + ' ' + e.detected;
+
+            document.getElementById('confidenceText').textContent = (e.confidence * 100).toFixed(1) + '% confidence';
+            document.getElementById('methodBadge').textContent = e.method === 'transformer' ? 'Transformer Model' : 'VADER + Keywords';
+
+            // Score bars
+            const barsContainer = document.getElementById('scoreBars');
+            barsContainer.innerHTML = '';
+            const sorted = Object.entries(e.all_scores).sort((a, b) => b[1] - a[1]);
+            for (const [emotion, score] of sorted) {
+                const pct = (score * 100).toFixed(1);
+                barsContainer.innerHTML += `
+                    <div class="score-row">
+                        <span class="score-label">${emotion}</span>
+                        <div class="score-bar-bg">
+                            <div class="score-bar-fill bar-${emotion}" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="score-pct">${pct}%</span>
+                    </div>`;
+            }
+
+            // Voice parameters
+            setParam('paramRate', v.rate);
+            setParam('paramPitch', v.pitch);
+            setParam('paramVolume', v.volume);
+            document.getElementById('paramDesc').textContent = v.description;
+
+            // SSML
+            document.getElementById('ssmlBlock').textContent = v.ssml;
+            document.getElementById('ssmlBlock').style.display = 'none';
+            document.querySelector('.ssml-toggle').textContent = 'Show SSML Markup';
+
+            // Audio
+            const audioUrl = data.audio_url;
+            document.getElementById('audioPlayer').src = audioUrl;
+            document.getElementById('downloadBtn').href = audioUrl;
+            document.getElementById('audioPlayer').play().catch(() => {});
+
+            // Show results
+            document.getElementById('results').classList.add('visible');
+        }
+
+        function setParam(id, value) {
+            const el = document.getElementById(id);
+            el.textContent = value;
+            const num = parseInt(value);
+            el.className = 'param-value ' + (num > 0 ? 'param-positive' : num < 0 ? 'param-negative' : 'param-zero');
+        }
+
+        function toggleSsml() {
+            const block = document.getElementById('ssmlBlock');
+            const btn = document.querySelector('.ssml-toggle');
+            if (block.style.display === 'none') {
+                block.style.display = 'block';
+                btn.textContent = 'Hide SSML Markup';
+            } else {
+                block.style.display = 'none';
+                btn.textContent = 'Show SSML Markup';
+            }
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+        function hideError() { document.getElementById('errorMsg').style.display = 'none'; }
+
+        // Allow Ctrl+Enter to generate
+        document.getElementById('textInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) generate();
+        });
+    </script>
+</body>
+</html>
